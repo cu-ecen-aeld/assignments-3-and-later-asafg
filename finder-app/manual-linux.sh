@@ -21,6 +21,8 @@ else
 	echo "Using passed directory ${OUTDIR} for output"
 fi
 
+OUTDIR="$(realpath "${OUTDIR}")"
+
 mkdir -p ${OUTDIR}
 
 cd "$OUTDIR"
@@ -33,8 +35,16 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     cd linux-stable
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
-
     # TODO: Add your kernel build steps here
+
+    # apply patch to remove 'yyloc' error
+    git apply ${FINDER_APP_DIR}/0001-scripts-dtc-Remove-redundant-YYLOC-global-declaratio.patch
+    make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE mrproper
+    make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE defconfig
+    make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE -j12 all
+    make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE dtbs 
+
+    exit 2
 fi
 
 echo "Adding the Image in outdir"
