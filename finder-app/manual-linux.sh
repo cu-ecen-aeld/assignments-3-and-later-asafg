@@ -43,11 +43,10 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE defconfig
     make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE -j12 all
     make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE dtbs 
-
-    exit 2
 fi
 
 echo "Adding the Image in outdir"
+cp -v ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
@@ -58,6 +57,10 @@ then
 fi
 
 # TODO: Create necessary base directories
+mkdir "${OUTDIR}/rootfs"
+cd "${OUTDIR}/rootfs"
+mkdir bin dev etc home lib lib64 proc sbin sys tmp usr var
+mkdir usr/bin usr/lib usr/sbin var/log
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]
