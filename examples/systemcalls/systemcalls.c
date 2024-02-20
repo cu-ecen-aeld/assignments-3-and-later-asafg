@@ -1,3 +1,9 @@
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include "systemcalls.h"
 
 /**
@@ -9,16 +15,19 @@
 */
 bool do_system(const char *cmd)
 {
-
-/*
- * TODO  add your code here
- *  Call the system() function with the command set in the cmd
- *   and return a boolean true if the system() call completed with success
- *   or false() if it returned a failure
-*/
-
+    int rt;
+    rt = system(cmd);
+    if (rt == -1) {
+      perror("system");
+      return false;
+    }
+    if (rt == 127) {
+      return false; 
+    }
     return true;
 }
+
+const char * get_file_name(const char * path);
 
 /**
 * @param count -The numbers of variables passed to the function. The variables are command to execute.
@@ -45,23 +54,56 @@ bool do_exec(int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
-/*
- * TODO:
- *   Execute a system command by calling fork, execv(),
- *   and wait instead of system (see LSP page 161).
- *   Use the command[0] as the full path to the command to execute
- *   (first argument to execv), and use the remaining arguments
- *   as second argument to the execv() command.
- *
-*/
+    int status;
+    pid_t pid;
+    bool is_success = false;
 
+    pid = fork();
+    if (pid == -1) {
+      perror("fork failed");
+      goto cleanup;
+    }
+    else if (pid == 0) { /* child process */
+      const char * path = command[0];
+      const char * file_name = get_file_name(path);
+      command[0] = (char *)file_name;
+      execv(path, command);
+      /* would reach here only if execv fails */
+      exit(-1);
+    }
+    /* parent process */
+    if (waitpid(pid, &status, 0) == -1) {
+      perror("waitpid");
+      goto cleanup;
+    }
+    else {
+      if (WIFEXITED(status)) { /* child process exited (was not iterrupted) */
+        if (WEXITSTATUS(status)) {
+          /* child process exited with non zero value - i.e. failed */
+          goto cleanup;
+        }
+      }
+    }
+    /* if we reached here, everything is fine */
+    is_success = true;
+
+cleanup:
     va_end(args);
+    return is_success;
+}
 
-    return true;
+/* helper function to extract file name from an absolute path */
+const char * get_file_name(const char * path) {
+  int len = strlen(path);
+  int i;
+  for (i = len - 1;i > 0;i--) {
+    if (path[i] == '/') {
+      i++;
+      break;
+    }
+  }
+  return path + i;
 }
 
 /**
@@ -80,20 +122,55 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
+    int status;
+    pid_t pid;
+    bool is_success = false;
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if (fd < 0) { 
+      perror("open");
+      goto cleanup;
+    }
+    pid = fork();
+    if (pid == -1) {
+      perror("fork");
+      goto cleanup;
+    }
+    else if (pid == 0) { /* child process */
+      /* output redirection */
+      if (dup2(fd, STDOUT_FILENO) < 0) {
+        perror("dup2");
+        goto cleanup;
+      }
+      close(fd);
+      const char * path = command[0];
+      const char * file_name = get_file_name(path);
+      command[0] = (char *)file_name;
+      execv(path, command);
+      /* would reach here only if execv fails */
+      exit(-1);
+    }
+    /* parent process */
+    if (waitpid(pid, &status, 0) == -1) {
+      perror("waitpid");
+      goto cleanup;
+    }
+    else {
+      if (WIFEXITED(status)) {
+        if (WEXITSTATUS(status)) {
+          /* child process exited with non zero value - i.e. failed */
+          goto cleanup;
+        }
+      }
+    }
+    /* if we reached here, everything is fine */
+    is_success = true;
 
-/*
- * TODO
- *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
- *   redirect standard out to a file specified by outputfile.
- *   The rest of the behaviour is same as do_exec()
- *
-*/
-
+cleanup:
     va_end(args);
+    if (fd > -1) {
+      close(fd);
+    }
 
-    return true;
+    return is_success;
 }
