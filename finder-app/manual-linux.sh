@@ -79,7 +79,7 @@ make defconfig
 make -j12 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} 
 make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTDIR}/rootfs install
 
-cd ${OUTDIR}/rootfs
+cd "${OUTDIR}/rootfs"
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
@@ -94,15 +94,36 @@ do
   lib_path="$(find "$(dirname "$(which aarch64-none-linux-gnu-gcc)")/.." -name ${lib_file})"
   cp -v ${lib_path} lib64
 done
-exit 2
 
 # TODO: Make device nodes
+echo "Creating device nodes"
+sudo mknod -m 666 dev/null c 1 3
+sudo mknod -m 600 dev/console c 1 5
 
 # TODO: Clean and build the writer utility
+echo "Compiling writer utility"
+cd "${FINDER_APP_DIR}"
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} clean 
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} 
 
 # TODO: Copy the finder related scripts and executables to the /home directory
+cp -v writer "${OUTDIR}/rootfs/home"
+cp -v finder.sh finder-test.sh "${OUTDIR}/rootfs/home"
+mkdir "${OUTDIR}/rootfs/home/conf"
+cp -v conf/{assignment.txt,username.txt} "${OUTDIR}/rootfs/home/conf"
+# ../conf -> conf
+sed -i 's#../conf#conf#g' "${OUTDIR}/rootfs/home/finder-test.sh"
+cp -v autorun-qemu.sh "${OUTDIR}/rootfs/home"
+
 # on the target rootfs
 
 # TODO: Chown the root directory
+sudo chown root:root "${OUTDIR}/rootfs"
 
 # TODO: Create initramfs.cpio.gz
+echo "Creating cpio archive"
+cd "${OUTDIR}/rootfs"
+find . | cpio -H newc -ov --owner root:root | sudo tee "${OUTDIR}/initramfs.cpio" > /dev/null
+cd "${OUTDIR}"
+sudo gzip -f initramfs.cpio
+
