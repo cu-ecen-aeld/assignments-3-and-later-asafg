@@ -39,10 +39,10 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 
     # apply patch to remove 'yyloc' error
     git apply ${FINDER_APP_DIR}/0001-scripts-dtc-Remove-redundant-YYLOC-global-declaratio.patch
-    make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE mrproper
-    make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE defconfig
-    make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE -j12 all
-    make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE dtbs 
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -j12 all
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs 
 fi
 
 echo "Adding the Image in outdir"
@@ -74,12 +74,27 @@ else
 fi
 
 # TODO: Make and install busybox
+make distclean
+make defconfig
+make -j12 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} 
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTDIR}/rootfs install
 
+cd ${OUTDIR}/rootfs
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
+lib_ld_linux="$(${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter" | awk -F / '{print $3}' | sed 's/]//g')"
+libs="$(${CROSS_COMPILE}readelf -a bin/busybox | grep  "Shared library" | awk -F [ '{print $2}' | sed 's/]//g')"
+lib_path="$(find "$(dirname "$(which aarch64-none-linux-gnu-gcc)")/.." -name ${lib_ld_linux})"
+cp -v ${lib_path} lib
+for lib_file in $libs;
+do
+  lib_path="$(find "$(dirname "$(which aarch64-none-linux-gnu-gcc)")/.." -name ${lib_file})"
+  cp -v ${lib_path} lib64
+done
+exit 2
 
 # TODO: Make device nodes
 
