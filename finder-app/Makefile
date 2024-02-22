@@ -1,5 +1,5 @@
 
-CC = gcc
+CC = $(CROSS_COMPILE)gcc
 CFLAGS = -g -Wall
 
 .PHONY: all clean 
@@ -9,10 +9,10 @@ CFLAGS = -g -Wall
 all: writer
 
 writer: writer.o
-	$(CROSS_COMPILE)$(CC) $(CFLAGS) -I/. $< -o $@
+	$(CC) $(CFLAGS) -I/. $< -o $@
 
 %.o: %.c
-	$(CROSS_COMPILE)$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -c $<
 
 clean:
 	rm -f *.o writer
