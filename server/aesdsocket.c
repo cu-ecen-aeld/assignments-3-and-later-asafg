@@ -1,12 +1,5 @@
-#ifdef __GLIBC__
-  #include <features.h>
-  #if __GLIBC__ >= 2 && __GLIBC_MINOR__ >= 29
-    // nothing to do
-  #elif __GLIBC__ >= 2 && __GLIBC_MINOR__ >= 26
-    #define _GNU_SOURCE  
-  #else
-    #define reallocarray(ptr, nmemb, size) realloc((ptr), ((nmemb) * (size)))
-  #endif
+#ifdef __UCLIBC__
+  #define reallocarray(ptr, nmemb, size) realloc((ptr), ((nmemb) * (size)))
 #endif
 #include <stdio.h>
 #include <stdlib.h>
