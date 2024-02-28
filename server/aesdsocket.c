@@ -2,9 +2,11 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <string.h>
 #include <malloc.h>
 #include <syslog.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <signal.h>
 #include <errno.h>
@@ -17,7 +19,7 @@
 
 #define PORT "9000"  // the port users will be connecting to
 #define BACKLOG 20   // how many pending connections queue will hold
-#define BUFLEN  10 //1024
+#define BUFLEN  1024
 #define OUTPUT_FILE "/var/tmp/aesdsocketdata"
 
 static bool is_running = false;
@@ -32,11 +34,9 @@ void signal_handler(int signal)
   }
   else { // SIGTERM, SIGINT
     is_running = false;
-    printf("Caught signal, exiting\n");
+    syslog(LOG_INFO, "Caught signal, exiting");
     shutdown(server_sock_fd, SHUT_RDWR);
-    // TODO: close socket, exit gracefully
   }
-
   errno = saved_errno;
 }
 
@@ -69,10 +69,9 @@ void *get_in_addr(struct sockaddr *sa)
   return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-int start_listening(void) {
+int start_listening(char * ip_address) {
   int server_sock_fd; 
   struct addrinfo hints, *servinfo, *p_addrinfo;
-  char server_ip[INET6_ADDRSTRLEN];
   int yes=1;
   int rv;
   servinfo = NULL;
@@ -121,13 +120,12 @@ int start_listening(void) {
   // get human readable address of the bound socket
   inet_ntop(p_addrinfo->ai_family, 
       get_in_addr((struct sockaddr *)p_addrinfo->ai_addr),
-      server_ip, sizeof server_ip);
+      ip_address, sizeof ip_address);
   freeaddrinfo(servinfo); // all done with this structure
 
   if (listen(server_sock_fd, BACKLOG) == -1) {
     perror("listen");
   }
-  printf("Listening on address %s\n", server_ip);
   return server_sock_fd;
 }
 
@@ -148,7 +146,6 @@ char * readline(int client_sock_fd) {
       return NULL;
     }
   }
-  //memset(buf, 0, bufsize);
   int offset = 0;
   char * eol = NULL;
   ssize_t bytes_read = 0;
@@ -163,14 +160,9 @@ char * readline(int client_sock_fd) {
     else if (bytes_read == 0) {
       return buf;
     }
-    printf("after recv: bytes_read: %ld, bufsize: %d, offset: %d, buf + offset: %p, bufsize - 1 - offset: %d);\n",
-        bytes_read, bufsize, offset, (buf + offset), (bufsize - 1 - offset));
     buf[offset + bytes_read] = '\0';
-    printf("buf: ***%s***", buf);
     eol = strchr(buf + offset, '\n');
-    printf("\neol is NULL ? %s\n", (eol == NULL) ? "yes" : "no");
     if (eol == NULL) { // we did not encounter '\n', double the buffer size and read again
-      printf("\n");
       offset += bytes_read;
       if (offset == bufsize - 1) {
         bufsize *= 2;
@@ -183,9 +175,6 @@ char * readline(int client_sock_fd) {
         buf = newbuf;
       }
     }
-    printf("before printing line\n");
-    printf("buf: -**%s**-", buf);
-    printf("after printing line\n");
   }
   return buf;
 }
@@ -208,9 +197,7 @@ bool send_file(FILE * file, int client_sock_fd) {
   size_t bytes_left = 0;
   size_t offset = 0;
   rewind(file);
-  printf("before send loop\n");
   while ((bytes_read = getline(&line, &bufsize, file)) != -1) {
-    printf("bytes_read: %jd line: %s\n", bytes_read, line);
     bytes_left = bytes_read;
     offset = 0;
     while (bytes_left > 0) {
@@ -219,7 +206,6 @@ bool send_file(FILE * file, int client_sock_fd) {
       offset += bytes_sent; 
     }
   }
-  printf("after recv loop: bytes_read: %jd\n", bytes_read);
   free(line);
   if (errno != 0) {
     perror("send");
@@ -228,18 +214,68 @@ bool send_file(FILE * file, int client_sock_fd) {
   return true;
 }
 
-int main(void)
-{
+void daemonize(void) {
+  pid_t pid;
+  pid = fork(); 
+  if (pid < 0) {
+    perror("fork");
+    exit(EXIT_FAILURE);
+  }
+  if (pid > 0) { // parent
+    exit(EXIT_SUCCESS);
+  }
+  if (setsid() == -1) { // new session creation failed
+    perror("setsid");
+    exit(EXIT_FAILURE);    
+  }
+  // fork again
+  pid = fork(); 
+  if (pid < 0) {
+    perror("fork");
+    exit(EXIT_FAILURE);
+  }
+  if (pid > 0) { // (2nd) parent
+    exit(EXIT_SUCCESS);
+  }
+
+  /* Set new file permissions */
+  umask(0);
+
+  /* Change the working directory to the root directory */
+  chdir("/");
+
+  int fd = open("/dev/null", O_RDWR, S_IRUSR | S_IWUSR);
+  if (dup2(fd, STDIN_FILENO) < 0) {
+     perror("dup2");
+     exit(EXIT_FAILURE);
+  }
+  if (dup2(fd, STDOUT_FILENO) < 0) {
+     perror("dup2");
+     exit(EXIT_FAILURE);
+  }
+  if (dup2(fd, STDERR_FILENO) < 0) {
+     perror("dup2");
+     exit(EXIT_FAILURE);
+  }
+}
+
+int main(int argc, char **argv) {
   int client_sock_fd;  // listen on sock_fd, new connection on new_fd
   struct sockaddr_storage client_address; // connector's address information
   socklen_t sin_size;
-  char server_ip[INET6_ADDRSTRLEN];
+  char ip_address[INET6_ADDRSTRLEN];
   char * line = NULL;
   FILE * file = NULL;
   int exit_code = EXIT_SUCCESS;
+  bool should_daemonize = false;
+  if (argc == 2) {
+    if (strcmp("-d", argv[1]) == 0) {
+      should_daemonize = true;
+    }
+  }
 
-  openlog(NULL, 0, LOG_USER);
-  server_sock_fd = start_listening();
+  openlog("aesdsocket", 0, LOG_USER);
+  server_sock_fd = start_listening(ip_address);
   if (server_sock_fd == -1) {
     exit_code = EXIT_FAILURE;
     goto cleanup;
@@ -248,10 +284,14 @@ int main(void)
     exit_code = EXIT_FAILURE;
     goto cleanup;
   }
-
+  if (should_daemonize) {
+    daemonize();
+  } 
+  else { // print only if not being run as daemon 
+    printf("Listening on address %s\n", ip_address);
+  }
   is_running = true;
-  printf("Accepting connections...\n");
-  while(is_running) {
+  while(is_running) { // accept loop
     sin_size = sizeof client_address;
     client_sock_fd = accept(server_sock_fd, (struct sockaddr *)&client_address, &sin_size);
     if (client_sock_fd == -1) {
@@ -261,14 +301,14 @@ int main(void)
       }
       else {
         // we're not running any more...
-        goto cleanup;
+        break;
       }
     }
 
     inet_ntop(client_address.ss_family,
         get_in_addr((struct sockaddr *)&client_address),
-        server_ip, sizeof server_ip);
-    printf("server: got connection from %s\n", server_ip);
+        ip_address, sizeof ip_address);
+    syslog(LOG_INFO, "Accepted connection from %s", ip_address);
 
     if (!fork()) { // this is the child process
       close(server_sock_fd); // child doesn't need the listener
@@ -276,14 +316,13 @@ int main(void)
       line = readline(client_sock_fd);
       if (line == NULL) {
         exit_code = EXIT_FAILURE;
-        goto cleanup;
+        break;
       }
-      printf("line: %s", line);
       file = fopen(OUTPUT_FILE, "a+");
       if (file == NULL) {
         perror("fopen");
         exit_code = EXIT_FAILURE;
-        goto cleanup;
+        break;
       }
       if (!write_to_file(file, line)) {
         exit_code = EXIT_FAILURE;
@@ -291,27 +330,28 @@ int main(void)
       if (!send_file(file, client_sock_fd)) {
         exit_code = EXIT_FAILURE;
       }
-      goto cleanup;
+      break; // we're in child process, we don't loop with accept()s
     }
     close(client_sock_fd);  // parent doesn't need this
+    client_sock_fd = -1;
   }
 cleanup:
-  printf("reached cleanup\n");
   if (server_sock_fd != -1) {
     close(server_sock_fd);
   }
   if (client_sock_fd != -1) {
     close(client_sock_fd);
+    syslog(LOG_INFO, "Closed connection from %s", ip_address);
   }
   free(line);
   if (file != NULL) {
     fclose(file);
   }
   if (!is_running) {
-    printf("going to remove file...\n");
-    if (!remove(OUTPUT_FILE)) {
+    if (remove(OUTPUT_FILE) == -1) {
       perror("remove");
     }
+    closelog();
   }
   return exit_code;
 }
