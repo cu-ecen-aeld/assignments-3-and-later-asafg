@@ -40,32 +40,32 @@ void signal_handler(int signal)
   errno = saved_errno;
 }
 
-int set_signals(void) {
+bool set_signals(void) {
   struct sigaction sa;
   sa.sa_handler = signal_handler; // handles SIGCHLD, SIGINT, SIGTERM 
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_RESTART;
   if (sigaction(SIGCHLD, &sa, NULL) == -1) {
     perror("sigaction");
-    return -1;
+    return false;
   }
   if (sigaction(SIGINT, &sa, NULL) == -1) {
     perror("sigaction");
-    return -1;
+    return false;
   }
   if (sigaction(SIGTERM, &sa, NULL) == -1) {
     perror("sigaction");
-    return -1;
+    return false;
   }
-  return 0;
+  return true;
 }
 
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
 {
-  if (sa->sa_family == AF_INET) {
+  if (sa->sa_family == AF_INET) { // IPv4
     return &(((struct sockaddr_in*)sa)->sin_addr);
-  }
+  } //IPv6
   return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
@@ -130,9 +130,9 @@ int start_listening(char * ip_address) {
 }
 
 /*
- * Reads line from the socket.
+ * Read line from the socket.
  *
- * Returns a pointer to the line read or NULL if failed to read the line.
+ * Return a pointer to the line read or NULL if failed to read the line.
  * The memory allocated should be released by the caller.
  */
 char * readline(int client_sock_fd) {
@@ -179,7 +179,10 @@ char * readline(int client_sock_fd) {
   return buf;
 }
 
-bool write_to_file(FILE * file, char * line) {
+/*
+ * Append line to file
+ */
+bool append_to_file(FILE * file, char * line) {
   size_t bytes_written = 0;
   bytes_written = fwrite(line, 1, strlen(line), file);
   if (bytes_written < strlen(line)) {
@@ -239,7 +242,7 @@ void daemonize(void) {
   }
 
   /* Set new file permissions */
-  umask(0);
+  umask(022);
 
   /* Change the working directory to the root directory */
   chdir("/");
@@ -259,7 +262,33 @@ void daemonize(void) {
   }
 }
 
+void print_help(char * progname) {
+  printf("Usage: %s [OPTION]\n", progname);
+  printf("Start AESD socket server.\n");
+  printf("options:\n");
+  printf("        -d  run as a daemon\n");
+  printf("        -h  print this help message\n");
+}
+
+void parse_args(int argc, char **argv, bool * should_daemonize) {
+  if (argc > 2) {
+    print_help(argv[0]);
+    printf("\nerror: too many arguments.\n");
+    exit(EXIT_FAILURE);
+  }
+  if (argc == 2) {
+    if (strcmp("-d", argv[1]) == 0) {
+      *should_daemonize = true;
+    }
+    else if (strcmp("-h", argv[1]) == 0) {
+      print_help(argv[0]);
+      exit(EXIT_SUCCESS);
+    }
+  } 
+}
+
 int main(int argc, char **argv) {
+  pid_t pid;
   int client_sock_fd;  // listen on sock_fd, new connection on new_fd
   struct sockaddr_storage client_address; // connector's address information
   socklen_t sin_size;
@@ -268,11 +297,7 @@ int main(int argc, char **argv) {
   FILE * file = NULL;
   int exit_code = EXIT_SUCCESS;
   bool should_daemonize = false;
-  if (argc == 2) {
-    if (strcmp("-d", argv[1]) == 0) {
-      should_daemonize = true;
-    }
-  }
+  parse_args(argc, argv, &should_daemonize);
 
   openlog("aesdsocket", 0, LOG_USER);
   server_sock_fd = start_listening(ip_address);
@@ -280,7 +305,7 @@ int main(int argc, char **argv) {
     exit_code = EXIT_FAILURE;
     goto cleanup;
   }
-  if (set_signals() == -1) {
+  if (!set_signals()) {
     exit_code = EXIT_FAILURE;
     goto cleanup;
   }
@@ -310,7 +335,7 @@ int main(int argc, char **argv) {
         ip_address, sizeof ip_address);
     syslog(LOG_INFO, "Accepted connection from %s", ip_address);
 
-    if (!fork()) { // this is the child process
+    if ((pid = fork()) == 0) { // this is the child process
       close(server_sock_fd); // child doesn't need the listener
       server_sock_fd = -1;
       line = readline(client_sock_fd);
@@ -324,7 +349,7 @@ int main(int argc, char **argv) {
         exit_code = EXIT_FAILURE;
         break;
       }
-      if (!write_to_file(file, line)) {
+      if (!append_to_file(file, line)) {
         exit_code = EXIT_FAILURE;
       }
       if (!send_file(file, client_sock_fd)) {
@@ -347,7 +372,7 @@ cleanup:
   if (file != NULL) {
     fclose(file);
   }
-  if (!is_running) {
+  if (!is_running && pid > 0) { // do this only once, in parent process
     if (remove(OUTPUT_FILE) == -1) {
       perror("remove");
     }
