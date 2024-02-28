@@ -1,3 +1,9 @@
+#ifdef __GLIBC__
+  #include <gnu/libc-version.h>
+  #if !__GNUC_PREREQ (2,26)
+    #define reallocarray(ptr, nmemb, size) realloc((ptr), ((nmemb) * (size)))
+  #endif
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
