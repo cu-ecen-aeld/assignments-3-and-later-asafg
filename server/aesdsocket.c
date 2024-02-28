@@ -1,6 +1,10 @@
 #ifdef __GLIBC__
-  #include <gnu/libc-version.h>
-  #if !__GNUC_PREREQ (2,26)
+  #include <features.h>
+  #if __GNUC_PREREQ (2,29)
+    // nothing to do
+  #elif __GNUC_PREREQ (2,26)
+    #define _GNU_SOURCE  
+  #else
     #define reallocarray(ptr, nmemb, size) realloc((ptr), ((nmemb) * (size)))
   #endif
 #endif
