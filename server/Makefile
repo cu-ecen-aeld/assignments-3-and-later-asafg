@@ -8,7 +8,7 @@ CFLAGS = -g -Wall -Werror -Wextra
 
 all: aesdsocket
 
-aesdsocket: aesdsocket.o sock_thread.o
+aesdsocket: aesdsocket.o sock_thread.o itimer_thread.o
 	$(CC) $(CFLAGS) -I/. $^ -o $@
 
 %.o: %.c
