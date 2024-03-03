@@ -38,7 +38,7 @@
 #ifdef LIBBSD_OVERLAY
 #include <sys/cdefs.h>
 #else
-#include <bsd/sys/cdefs.h>
+#include "cdefs.h"
 #endif
 
 /*

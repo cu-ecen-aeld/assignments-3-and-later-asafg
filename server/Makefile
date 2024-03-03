@@ -8,11 +8,11 @@ CFLAGS = -g -Wall -Werror -Wextra
 
 all: aesdsocket
 
-aesdsocket: aesdsocket.o sock_thread.o itimer_thread.o
-	$(CC) $(CFLAGS) -I/. $^ -o $@
+aesdsocket: itimer_thread.o sock_thread.o aesdsocket.o
+	$(CC) $(CFLAGS) -I/. $^ -o $@ -pthread -lrt
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -I/. -c $<
 
 clean:
 	rm -f *.o aesdsocket
