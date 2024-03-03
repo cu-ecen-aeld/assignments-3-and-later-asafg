@@ -8,8 +8,8 @@ CFLAGS = -g -Wall -Werror -Wextra
 
 all: aesdsocket
 
-aesdsocket: aesdsocket.o
-	$(CC) $(CFLAGS) -I/. $< -o $@
+aesdsocket: aesdsocket.o sock_thread.o
+	$(CC) $(CFLAGS) -I/. $^ -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<
