@@ -20,7 +20,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-#include <bsd/sys/queue.h>
+#include "queue.h"
 #include "aesdsocket.h"
 
 static bool is_running = false;

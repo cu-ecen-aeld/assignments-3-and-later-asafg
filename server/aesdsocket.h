@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <netinet/in.h>
-#include <bsd/sys/queue.h>
+#include "queue.h"
 
 #define PORT "9000"  // the port users will be connecting to
 #define BACKLOG 20   // how many pending connections queue will hold
