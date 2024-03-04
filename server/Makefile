@@ -1,18 +1,21 @@
 
-CC = $(CROSS_COMPILE)gcc
-CFLAGS = -g -Wall -Werror -Wextra
+CC ?= $(CROSS_COMPILE)gcc
+CFLAGS ?= -g -Wall -Werror -Wextra
+LDFLAGS ?= -pthread -lrt
+INCLUDES ?= -I/.
+TARGET ?= aesdsocket
 
 .PHONY: all clean 
 
 .DEFAULT: all
 
-all: aesdsocket
+all: $(TARGET)
 
-aesdsocket: itimer_thread.o sock_thread.o aesdsocket.o
-	$(CC) $(CFLAGS) -I/. $^ -o $@ -pthread -lrt
+$(TARGET): itimer_thread.o sock_thread.o main.o
+	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $^ -o $(TARGET)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -I/. -c $<
+	$(CC) $(CFLAGS) $(INCLUDES) -c $<
 
 clean:
-	rm -f *.o aesdsocket
+	rm -f *.o $(TARGET)
