@@ -50,10 +50,15 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
  * new start location.
  * Any necessary locking must be handled by the caller
  * Any memory referenced in @param add_entry must be allocated by and/or must have a lifetime managed by the caller.
+ * @return NULL or, if the buffer is already full, the value of buffptr for the entry that was replaced.
  */
-void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
+const char *aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
 {
-  buffer->entry[buffer->in_offs++] = *add_entry;
+  struct aesd_buffer_entry *write_to_entry = &(buffer->entry[buffer->in_offs]);
+  const char *rptr = write_to_entry->buffptr;
+  write_to_entry->buffptr = add_entry->buffptr;
+  write_to_entry->size = add_entry->size;
+  buffer->in_offs++;
   if (buffer->in_offs == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) {
     buffer->full = true;
     buffer->in_offs = 0;
@@ -61,6 +66,7 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
   if (buffer->full) {
     buffer->out_offs = buffer->in_offs;
   }
+  return rptr;
 }
 
 /**
