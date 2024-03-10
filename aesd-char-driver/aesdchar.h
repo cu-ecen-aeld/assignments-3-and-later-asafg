@@ -27,7 +27,8 @@
 
 struct aesd_dev
 {
-  struct aesd_buffer_entry *entry;
+  char *tmp_buff_ptr;
+  size_t tmp_buff_size;
   struct aesd_circular_buffer *buffer;
   struct mutex lock;    /* mutual exclusion semaphore     */
   struct cdev cdev;     /* Char device structure      */
