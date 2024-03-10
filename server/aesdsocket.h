@@ -10,6 +10,9 @@
 #define PORT "9000"  // the port users will be connecting to
 #define BACKLOG 20   // how many pending connections queue will hold
 #define BUFLEN  1024
+#ifdef USE_AESD_CHAR_DEVICE
+#define OUTPUT_FILE "/dev/aesdchar"
+#else
 #define OUTPUT_FILE "/var/tmp/aesdsocketdata"
 #define TIMER_INTERVAL_SECS 10
 /*
@@ -20,6 +23,15 @@
 struct timer_thread_args {
   pthread_mutex_t * mutex;
 };
+
+/*
+ * Starts a POSIX interval timer running every interval_secs.
+ * On success returns true 
+ * and the id of the timer created is stored in @param timer_id.
+ */
+bool start_timer(int interval_sec, struct timer_thread_args * timer_args, timer_t * timer_id);
+
+#endif //USE_AESD_CHAR_DEVICE
 
 /*
  * Used for the threads that deal with client sockets.
@@ -38,13 +50,6 @@ struct aesd_thread_args {
   bool finished;
   SLIST_ENTRY(aesd_thread_args) elements;
 };
-
-/*
- * Starts a POSIX interval timer running every interval_secs.
- * On success returns true 
- * and the id of the timer created is stored in @param timer_id.
- */
-bool start_timer(int interval_sec, struct timer_thread_args * timer_args, timer_t * timer_id);
 
 /*
  * Allocates aesd_thread_args, and initializes it.

@@ -290,12 +290,14 @@ int main(int argc, char **argv) {
   /*
    * Set and start timer
    */
+#ifndef USE_AESD_CHAR_DEVICE
   struct timer_thread_args timer_args = { &mutex };
   timer_t timer_id;
   if (!start_timer(TIMER_INTERVAL_SECS, &timer_args, &timer_id)) {
     fprintf(stderr, "main: failed to start timer\n");
     goto err_start_timer;
   }
+#endif
   // now we can start the main server loop
   is_running = true;
   while(is_running) { // accept loop
@@ -339,14 +341,18 @@ err_init_thread: //5
   if (client_sock_fd != -1) {
     close(client_sock_fd);
   }
+#ifndef USE_AESD_CHAR_DEVICE
   if (timer_delete(timer_id)) {
     perror("main: timer_delete");
   }
+#endif
   remove_all_remaining_threads(&list_head);  
   if (remove(OUTPUT_FILE) == -1) {
     perror("main: remove");
   }
-err_start_timer: //4
+#ifndef USE_AESD_CHAR_DEVICE
+  err_start_timer: //4
+#endif
   if ((rc = pthread_mutex_destroy(&mutex))) {
     errno = rc;
     perror("main: pthread_mutex_destroy");

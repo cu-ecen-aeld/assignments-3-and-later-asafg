@@ -1,3 +1,4 @@
+#ifndef USE_AESD_CHAR_DEVICE  // no need for this module if using /dev/aesdchar
 #include <malloc.h>
 #include <signal.h>
 #include <string.h>
@@ -93,3 +94,4 @@ bool start_timer(int interval_sec, struct timer_thread_args * timer_args, timer_
   }
   return true;
 }
+#endif //!USE_AESD_CHAR_DEVICE

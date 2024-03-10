@@ -1,6 +1,10 @@
+# use /dev/aesdchar as the output file
+# instead of /var/tmp/aesdsocketdata.
+# no time stamps writer timer when using /dev/aesdchar . 
+USE_AESD_CHAR_DEVICE ?= -DUSE_AESD_CHAR_DEVICE=1
 
 CC ?= $(CROSS_COMPILE)gcc
-CFLAGS ?= -g -Wall -Werror -Wextra
+CFLAGS ?= -g -Wall -Werror -Wextra $(USE_AESD_CHAR_DEVICE)
 LDFLAGS ?= -pthread -lrt
 INCLUDES ?= -I/.
 TARGET ?= aesdsocket
@@ -12,7 +16,7 @@ TARGET ?= aesdsocket
 all: $(TARGET)
 
 $(TARGET): itimer_thread.o sock_thread.o main.o
-	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $^ -o $(TARGET)
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $(TARGET)
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $<
