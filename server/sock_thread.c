@@ -64,7 +64,6 @@ bool send_file(FILE * file, int client_sock_fd) {
   ssize_t bytes_sent = 0;
   size_t bytes_left = 0;
   size_t offset = 0;
-  rewind(file);
   while ((bytes_read = getline(&line, &bufsize, file)) != -1) {
     bytes_left = bytes_read;
     offset = 0;
@@ -95,8 +94,8 @@ void* sock_thread_func(void* thread_param) {
   file = fopen(OUTPUT_FILE, "a+");
   if (file == NULL) {
     args->last_error = errno;
-    perror("sock_thread_func: fopen");
-    goto err_fopen; //2
+    perror("sock_thread_func: fopen a");
+    goto err_fopen_a; //2
   }
   if ((args->last_error = pthread_mutex_lock(args->mutex))) {
     errno = args->last_error;
@@ -107,9 +106,26 @@ void* sock_thread_func(void* thread_param) {
     args->last_error = errno;
     goto err_append_to_file; //4
   }
+  // closing the file here, and open again for read, 
+  // rather than share the open file since rewind(file) 
+  // doesn't work good with /dev/aesdsocket,
+  // and causes it to skip the first 5 bytes when reading.
+  if (fclose(file)) {
+    perror("sock_thread_func: fclose");
+    if (!args->last_error) { // update last_error only if no prior error
+      args->last_error = errno;
+    }
+  }
+  file = fopen(OUTPUT_FILE, "r");
+  if (file == NULL) {
+    args->last_error = errno;
+    perror("sock_thread_func: fopen r");
+    goto err_fopen_r; //5
+  }
   if (!send_file(file, args->sock_fd)) {
     args->last_error = errno;
   }
+err_fopen_r: //5
 err_append_to_file: //4 
   if ((rt = pthread_mutex_unlock(args->mutex))) {
     errno = rt;
@@ -122,10 +138,10 @@ err_mutex_lock: //3
   if (fclose(file)) {
     perror("sock_thread_func: fclose");
     if (!args->last_error) { // update last_error only if no prior error
-      args->last_error = rt;
+      args->last_error = errno;
     }
   }
-err_fopen: //2
+err_fopen_a: //2
   free(line);
 err_readline_from_socket: //1
   close(args->sock_fd);
