@@ -77,6 +77,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     retval = count;
   }
 fail:
+  PDEBUG("read releasing lock");
   mutex_unlock(&(dev->lock));
   PDEBUG("read before exiting retval: %zd, *f_pos: %lld", retval, *f_pos);
   return retval;
@@ -90,6 +91,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   struct aesd_dev *dev = filp->private_data;
   PDEBUG("write %zu bytes with offset %lld", count, *f_pos);
   buffer = dev->buffer;
+  PDEBUG("write acquiring lock");
   if (mutex_lock_interruptible(&(dev->lock))) {
     return -ERESTARTSYS;
   }
@@ -119,7 +121,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
       .size = dev->tmp_buff_size,
     };
     const char *oldbuffptr = aesd_circular_buffer_add_entry(buffer, &entry);
-    PDEBUG("write entry is complete, adding to circular buffer"); 
+    PDEBUG("write entry is complete, added to circular buffer"); 
     if (oldbuffptr) {
       PDEBUG("write freeing oldbuffptr returned from aesd_circular_buffer_add_entry()"); 
       kfree(oldbuffptr);
@@ -130,7 +132,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   }
   retval = count;
   *f_pos += count;
+  PDEBUG("write written %zu bytes, current offset %lld", count, *f_pos);
 fail:
+  PDEBUG("write releasing lock");
   mutex_unlock(&(dev->lock));
   return retval;
 }
