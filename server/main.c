@@ -347,10 +347,10 @@ err_init_thread: //5
   }
 #endif
   remove_all_remaining_threads(&list_head);  
+#ifndef USE_AESD_CHAR_DEVICE
   if (remove(OUTPUT_FILE) == -1) {
     perror("main: remove");
   }
-#ifndef USE_AESD_CHAR_DEVICE
   err_start_timer: //4
 #endif
   if ((rc = pthread_mutex_destroy(&mutex))) {
