@@ -25,6 +25,11 @@ int aesd_minor =   0;
 MODULE_AUTHOR("Asaf Gery");
 MODULE_LICENSE("Dual BSD/GPL");
 
+#ifdef AESD_DEBUG
+#define NULL_BYTE 1
+#else
+#define NULL_BYTE 0
+#endif
 struct aesd_dev aesd_device;
 
 int aesd_open(struct inode *inode, struct file *filp)
@@ -68,11 +73,12 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
       count = entry_bytes_to_read;
       PDEBUG("read count trimmed to %zu", count);
     }
-    if (copy_to_user(buf, entry + entry_offset_byte, count)) {
+    if (copy_to_user(buf, entry->buffptr + entry_offset_byte, count)) {
       retval = -EFAULT;
       PDEBUG("read copy_to_user() failed");
       goto fail;
     }
+    PDEBUG("copied to user %zu bytes from \"%s\"", count, entry->buffptr + entry_offset_byte);
     *f_pos += count;
     retval = count;
   }
@@ -97,13 +103,13 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   }
   if (dev->tmp_buff_size == 0) {
     PDEBUG("write dev->tmp_buff_size == 0, allocating %zu bytes for dev->tmp_buff_ptr", count);
-    dev->tmp_buff_ptr = kzalloc(sizeof(char) * count, GFP_KERNEL);
+    dev->tmp_buff_ptr = kzalloc(sizeof(char) * (count + NULL_BYTE), GFP_KERNEL);
   } 
   else {
-    PDEBUG("write dev->tmp_buff_size == %zu, reallocating %zu bytes for dev->tmp_buff_ptr", 
+    PDEBUG("write dev->tmp_buff_size: %zu, reallocating %zu bytes for dev->tmp_buff_ptr", 
         dev->tmp_buff_size, dev->tmp_buff_size + count);
     dev->tmp_buff_ptr = krealloc_array(
-        dev->tmp_buff_ptr, dev->tmp_buff_size + count, sizeof(char), GFP_KERNEL);
+        dev->tmp_buff_ptr, dev->tmp_buff_size + count + NULL_BYTE, sizeof(char), GFP_KERNEL);
   }
   if (!dev->tmp_buff_ptr) {
     goto fail;
@@ -114,6 +120,12 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     goto fail;
   }
   dev->tmp_buff_size += count;
+#ifdef AESD_DEBUG
+  // in debug mode we add extra byte to terminate the string with '\0'
+  // to allow printing
+  dev->tmp_buff_ptr[dev->tmp_buff_size] = '\0';
+  PDEBUG("write dev->tmp_buff_ptr: %s ***", dev->tmp_buff_ptr);
+#endif
   // if command is terminated, add to circular buffer
   if (dev->tmp_buff_ptr[dev->tmp_buff_size - 1] == '\n') {
     const struct aesd_buffer_entry entry = {
@@ -136,6 +148,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 fail:
   PDEBUG("write releasing lock");
   mutex_unlock(&(dev->lock));
+  PDEBUG("write returning value: %zd", retval);
   return retval;
 }
 
