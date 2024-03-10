@@ -108,7 +108,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   if (!dev->tmp_buff_ptr) {
     goto fail;
   }
-  if (copy_from_user(dev->tmp_buff_ptr, buf, count)) {
+  if (copy_from_user(dev->tmp_buff_ptr + dev->tmp_buff_size, buf, count)) {
     PDEBUG("write copy_from_user() failed"); 
     retval = -EFAULT;
     goto fail;
