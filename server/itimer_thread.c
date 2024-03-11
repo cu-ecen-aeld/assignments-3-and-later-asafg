@@ -1,4 +1,3 @@
-#ifndef USE_AESD_CHAR_DEVICE  // no need for this module if using /dev/aesdchar
 #include <malloc.h>
 #include <signal.h>
 #include <string.h>
@@ -6,6 +5,8 @@
 #include <errno.h>
 #include "aesdsocket.h"
 
+#ifndef USE_AESD_CHAR_DEVICE  // no need for this module if using /dev/aesdchar
+                              
 #define CLOCK_ID CLOCK_MONOTONIC
 #define RFC2822_TIME_FORMAT "%a, %d %b %Y %T %z"
 #define STRFTIME_BUF_SIZE 200 // used to hold the formatted time string
