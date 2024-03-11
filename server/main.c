@@ -1,7 +1,4 @@
 #include <features.h>
-#ifdef __UCLIBC__
-#define reallocarray(ptr, nmemb, size) realloc((ptr), ((nmemb) * (size)))
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>

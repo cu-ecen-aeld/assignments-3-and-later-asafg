@@ -9,6 +9,10 @@
 #include <sys/socket.h>
 #include "aesdsocket.h"
 
+#ifdef __UCLIBC__
+#define reallocarray(ptr, nmemb, size) realloc((ptr), ((nmemb) * (size)))
+#endif
+
 /*
  * fucntions used by client socket thread
  */
