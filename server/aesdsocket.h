@@ -7,6 +7,11 @@
 #include <netinet/in.h>
 #include "queue.h"
 
+/* didn't find a better way that works with build root... */
+/* if set, time stamp writter timer is skipped
+ * and /dev/aesdchar is used for OUTPUT_FILE */
+#define USE_AESD_CHAR_DEVICE 1
+
 #define PORT "9000"  // the port users will be connecting to
 #define BACKLOG 20   // how many pending connections queue will hold
 #define BUFLEN  1024

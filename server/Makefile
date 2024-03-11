@@ -1,10 +1,5 @@
-# use /dev/aesdchar as the output file
-# instead of /var/tmp/aesdsocketdata.
-# no time stamps writer timer when using /dev/aesdchar . 
-USE_AESD_CHAR_DEVICE ?= -DUSE_AESD_CHAR_DEVICE=1
-
 CC ?= $(CROSS_COMPILE)gcc
-CFLAGS ?= -g -Wall -Werror -Wextra $(USE_AESD_CHAR_DEVICE)
+CFLAGS ?= -g -Wall -Werror -Wextra
 LDFLAGS ?= -pthread -lrt
 INCLUDES ?= -I/.
 TARGET ?= aesdsocket
