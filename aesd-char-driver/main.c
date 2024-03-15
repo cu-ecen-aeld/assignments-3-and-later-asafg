@@ -27,14 +27,16 @@ MODULE_AUTHOR("Asaf Gery");
 MODULE_LICENSE("Dual BSD/GPL");
 
 #ifdef AESD_DEBUG
-#define NULL_BYTE 1
+#define DEBUG_BYTE 1 // add extra byte for '\0' when allocating memory
+                     // for cmd read from user space.
+                     // This allows printing the buffer's content with
+                     // printk easily.
 #else
-#define NULL_BYTE 0
+#define DEBUG_BYTE 0
 #endif
 struct aesd_dev aesd_device;
 
-int aesd_open(struct inode *inode, struct file *filp)
-{
+int aesd_open(struct inode *inode, struct file *filp) {
   struct aesd_dev *dev; /* device information */
   PDEBUG("open");
   dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
@@ -42,15 +44,13 @@ int aesd_open(struct inode *inode, struct file *filp)
   return 0;
 }
 
-int aesd_release(struct inode *inode, struct file *filp)
-{
+int aesd_release(struct inode *inode, struct file *filp) {
   PDEBUG("release");
   return 0;
 }
 
-ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
-    loff_t *f_pos)
-{
+ssize_t aesd_read(
+    struct file *filp, char __user *buf, size_t count, loff_t *f_pos) {
   ssize_t retval = 0;
   struct aesd_dev *dev;
   struct aesd_circular_buffer *buffer;
@@ -91,8 +91,7 @@ fail:
 }
 
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
-    loff_t *f_pos)
-{
+    loff_t *f_pos) {
   ssize_t retval = -ENOMEM;
   struct aesd_circular_buffer *buffer;
   struct aesd_dev *dev = filp->private_data;
@@ -104,13 +103,13 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   }
   if (dev->tmp_buff_size == 0) {
     PDEBUG("write dev->tmp_buff_size == 0, allocating %zu bytes for dev->tmp_buff_ptr", count);
-    dev->tmp_buff_ptr = kzalloc(sizeof(char) * (count + NULL_BYTE), GFP_KERNEL);
+    dev->tmp_buff_ptr = kzalloc(sizeof(char) * (count + DEBUG_BYTE), GFP_KERNEL);
   } 
   else {
     PDEBUG("write dev->tmp_buff_size: %zu, reallocating %zu bytes for dev->tmp_buff_ptr", 
         dev->tmp_buff_size, dev->tmp_buff_size + count);
     dev->tmp_buff_ptr = krealloc_array(
-        dev->tmp_buff_ptr, dev->tmp_buff_size + count + NULL_BYTE, sizeof(char), GFP_KERNEL);
+        dev->tmp_buff_ptr, dev->tmp_buff_size + count + DEBUG_BYTE, sizeof(char), GFP_KERNEL);
   }
   if (!dev->tmp_buff_ptr) {
     goto fail;
@@ -123,9 +122,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   dev->tmp_buff_size += count;
 #ifdef AESD_DEBUG
   // in debug mode we add extra byte to terminate the string with '\0'
-  // to allow printing
+  // to allow printing its content
   dev->tmp_buff_ptr[dev->tmp_buff_size] = '\0';
-  PDEBUG("write dev->tmp_buff_ptr: %s ***", dev->tmp_buff_ptr);
+  PDEBUG("write dev->tmp_buff_ptr: \"%s\"", dev->tmp_buff_ptr);
 #endif
   // if command is terminated, add to circular buffer
   if (dev->tmp_buff_ptr[dev->tmp_buff_size - 1] == '\n') {
@@ -164,8 +163,7 @@ static loff_t get_buffer_size(const struct aesd_circular_buffer *buffer) {
   return size;
 }
 
-loff_t aesd_llseek(struct file *filp, loff_t off, int whence)
-{
+loff_t aesd_llseek(struct file *filp, loff_t off, int whence) {
   loff_t buff_size, retval;
   struct aesd_dev *dev = filp->private_data;
 
@@ -224,8 +222,7 @@ out:
   return retval;
 }
 
-long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
-{
+long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
   int retval;
   struct aesd_seekto seek_to;
   /*
@@ -272,8 +269,7 @@ struct file_operations aesd_fops = {
 };
 
 
-static int aesd_setup_cdev(struct aesd_dev *dev)
-{
+static int aesd_setup_cdev(struct aesd_dev *dev) {
   int err, devno = MKDEV(aesd_major, aesd_minor);
 
   cdev_init(&dev->cdev, &aesd_fops);
@@ -286,8 +282,7 @@ static int aesd_setup_cdev(struct aesd_dev *dev)
   return err;
 }
 
-int aesd_init_module(void)
-{
+int aesd_init_module(void) {
   dev_t dev = 0;
   int result;
   result = alloc_chrdev_region(&dev, aesd_minor, 1,
@@ -318,8 +313,7 @@ fail:
 
 }
 
-void aesd_cleanup_module(void)
-{
+void aesd_cleanup_module(void) {
   char *tmp_buff_ptr;
   struct aesd_buffer_entry *entry;
   struct aesd_circular_buffer *buffer;
