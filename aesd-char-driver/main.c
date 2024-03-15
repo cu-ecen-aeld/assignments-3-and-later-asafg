@@ -190,7 +190,7 @@ static long aesd_adjust_file_offset(
   struct aesd_circular_buffer *buffer;
   struct aesd_dev *dev = filp->private_data;
   if (write_cmd >= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) {
-    PDEBUG("aesd_adjust_file_offset error: write_cmd (%u) is out of range");
+    PDEBUG("aesd_adjust_file_offset error: write_cmd (%u) is out of range", write_cmd);
     return -EINVAL;
   }
   if (mutex_lock_interruptible(&(dev->lock))) {
@@ -200,7 +200,7 @@ static long aesd_adjust_file_offset(
   buffer = dev->buffer;
   entry = &(buffer->entry[write_cmd]);
   if (write_cmd_offset >= entry->size) {
-    PDEBUG("aesd_adjust_file_offset error: write_cmd_offset (%u) exceeds cmd size (%u)",
+    PDEBUG("aesd_adjust_file_offset error: write_cmd_offset (%u) exceeds cmd size (%lu)",
         write_cmd_offset, entry->size);
     retval = -EINVAL;
     goto out;
@@ -281,7 +281,7 @@ static int aesd_setup_cdev(struct aesd_dev *dev)
   dev->cdev.ops = &aesd_fops;
   err = cdev_add (&dev->cdev, devno, 1);
   if (err) {
-    printk(KERN_ERR "Error %d adding aesd cdev", err);
+    printk(KERN_ERR "Error %d adding aesd cdev\n", err);
   }
   return err;
 }
