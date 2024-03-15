@@ -19,6 +19,7 @@
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/fs.h> // file_operations
 #include "aesdchar.h"
+#include "aesd_ioctl.h"
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
 
@@ -152,13 +153,124 @@ fail:
   return retval;
 }
 
+static loff_t get_buffer_size(const struct aesd_circular_buffer *buffer) {
+  int i;
+  const struct aesd_buffer_entry *entry;
+  loff_t size = 0;
+  for (i = 0;i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;i++) {
+    entry = &(buffer->entry[i]);
+    size += entry->size;
+  }
+  return size;
+}
+
+loff_t aesd_llseek(struct file *filp, loff_t off, int whence)
+{
+  loff_t buff_size, retval;
+  struct aesd_dev *dev = filp->private_data;
+
+  if (mutex_lock_interruptible(&(dev->lock))) {
+    PDEBUG("llseek failed to acquire lock");
+    return -ERESTARTSYS;
+  }
+  buff_size = get_buffer_size((const struct aesd_circular_buffer *)dev->buffer);
+  retval = fixed_size_llseek(filp, off, whence, buff_size);
+  PDEBUG("fixed_size_llseek returned %lld", retval);
+  PDEBUG("llseek releasing lock");
+  mutex_unlock(&(dev->lock));
+  return retval;
+}
+
+static long aesd_adjust_file_offset(
+    struct file *filp, unsigned int write_cmd, unsigned int write_cmd_offset) {
+  int i;
+  long retval;
+  loff_t offset, buff_size;
+  struct aesd_buffer_entry *entry;
+  struct aesd_circular_buffer *buffer;
+  struct aesd_dev *dev = filp->private_data;
+  if (write_cmd >= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) {
+    PDEBUG("aesd_adjust_file_offset error: write_cmd (%u) is out of range");
+    return -EINVAL;
+  }
+  if (mutex_lock_interruptible(&(dev->lock))) {
+    PDEBUG("aesd_adjust_file_offset failed to acquire lock");
+    return -ERESTARTSYS;
+  }
+  buffer = dev->buffer;
+  entry = &(buffer->entry[write_cmd]);
+  if (write_cmd_offset >= entry->size) {
+    PDEBUG("aesd_adjust_file_offset error: write_cmd_offset (%u) exceeds cmd size (%u)",
+        write_cmd_offset, entry->size);
+    retval = -EINVAL;
+    goto out;
+  }
+  buff_size = get_buffer_size(buffer);
+  offset = 0;
+  for (i = 0;i < write_cmd;i++) {
+    entry = &(buffer->entry[i]);
+    offset += entry->size;
+  }
+  offset += write_cmd_offset;
+  retval = fixed_size_llseek(filp, offset, SEEK_SET, buff_size);
+  if (retval >= 0) { // we are not interested in the offset,
+                     // just want to know that the function succeeded
+    retval = 0;
+  }
+out:
+  PDEBUG("aesd_adjust_file_offset releasing lock");
+  mutex_unlock(&(dev->lock));
+  PDEBUG("aesd_adjust_file_offset returning %ld", retval);
+  return retval;
+}
+
+long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+  int retval;
+  struct aesd_seekto seek_to;
+  /*
+   * extract the type and number bitfields, and don't decode
+   * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
+   */
+  if (_IOC_TYPE(cmd) != AESD_IOC_MAGIC) return -ENOTTY;
+  if (_IOC_NR(cmd) > AESDCHAR_IOC_MAXNR) return -ENOTTY;
+  /*
+   * the direction is a bitmask, and VERIFY_WRITE catches R/W
+   * transfers. `Type' is user-oriented, while
+   * access_ok is kernel-oriented, so the concept of "read" and
+   * "write" is reversed
+   */
+  if (_IOC_DIR(cmd) & _IOC_READ || _IOC_DIR(cmd) & _IOC_WRITE) {
+    if(!access_ok((void __user *)arg, _IOC_SIZE(cmd))) {
+      return -EFAULT;
+    }
+  }
+  switch(cmd) {
+    case AESDCHAR_IOCSEEKTO:
+      if (copy_from_user(&seek_to, (const void __user *)arg, sizeof(struct aesd_seekto))) {
+        retval = -EFAULT;
+      }
+      else {
+        retval = aesd_adjust_file_offset(
+            filp, seek_to.write_cmd, seek_to.write_cmd_offset);
+      }
+      break;
+    default:
+      retval = -ENOTTY;
+  }
+  return retval;
+}
+
 struct file_operations aesd_fops = {
-  .owner =    THIS_MODULE,
-  .read =     aesd_read,
-  .write =    aesd_write,
-  .open =     aesd_open,
-  .release =  aesd_release,
+  .owner   = THIS_MODULE,
+  .llseek  = aesd_llseek,
+  .read    = aesd_read,
+  .write   = aesd_write,
+  .open    = aesd_open,
+  .release = aesd_release,
+  .unlocked_ioctl = aesd_ioctl,
 };
+
 
 static int aesd_setup_cdev(struct aesd_dev *dev)
 {
