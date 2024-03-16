@@ -56,7 +56,7 @@ ssize_t aesd_read(
   struct aesd_circular_buffer *buffer;
   struct aesd_buffer_entry *entry;
   size_t entry_offset_byte;
-  PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
+  PDEBUG("read %zu bytes with offset %lld\n",count,*f_pos);
   dev = filp->private_data;
   buffer = dev->buffer;
   PDEBUG("read acquiring lock");
@@ -68,7 +68,7 @@ ssize_t aesd_read(
       buffer, *f_pos, &entry_offset_byte);
   if (entry) {
     size_t entry_bytes_to_read = entry->size - entry_offset_byte;
-    PDEBUG("read found entry at %p, offset inside entry: %zu", 
+    PDEBUG("read found entry at %p, offset inside entry: %zu\n",
         entry, entry_offset_byte);
     if (count > entry_bytes_to_read) {
       count = entry_bytes_to_read;
@@ -79,14 +79,14 @@ ssize_t aesd_read(
       PDEBUG("read copy_to_user() failed");
       goto fail;
     }
-    PDEBUG("copied to user %zu bytes from \"%s\"", count, entry->buffptr + entry_offset_byte);
+    PDEBUG("copied to user %zu bytes from \"%s\"\n", count, entry->buffptr + entry_offset_byte);
     *f_pos += count;
     retval = count;
   }
 fail:
-  PDEBUG("read releasing lock");
+  PDEBUG("read releasing lock\n");
   mutex_unlock(&(dev->lock));
-  PDEBUG("read before exiting retval: %zd, *f_pos: %lld", retval, *f_pos);
+  PDEBUG("read before exiting retval: %zd, *f_pos: %lld\n", retval, *f_pos);
   return retval;
 }
 
@@ -95,18 +95,18 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   ssize_t retval = -ENOMEM;
   struct aesd_circular_buffer *buffer;
   struct aesd_dev *dev = filp->private_data;
-  PDEBUG("write %zu bytes with offset %lld", count, *f_pos);
+  PDEBUG("write %zu bytes with offset %lld\n", count, *f_pos);
   buffer = dev->buffer;
   PDEBUG("write acquiring lock");
   if (mutex_lock_interruptible(&(dev->lock))) {
     return -ERESTARTSYS;
   }
   if (dev->tmp_buff_size == 0) {
-    PDEBUG("write dev->tmp_buff_size == 0, allocating %zu bytes for dev->tmp_buff_ptr", count);
+    PDEBUG("write dev->tmp_buff_size == 0, allocating %zu bytes for dev->tmp_buff_ptr\n", count);
     dev->tmp_buff_ptr = kzalloc(sizeof(char) * (count + DEBUG_BYTE), GFP_KERNEL);
   } 
   else {
-    PDEBUG("write dev->tmp_buff_size: %zu, reallocating %zu bytes for dev->tmp_buff_ptr", 
+    PDEBUG("write dev->tmp_buff_size: %zu, reallocating %zu bytes for dev->tmp_buff_ptr\n",
         dev->tmp_buff_size, dev->tmp_buff_size + count);
     dev->tmp_buff_ptr = krealloc_array(
         dev->tmp_buff_ptr, dev->tmp_buff_size + count + DEBUG_BYTE, sizeof(char), GFP_KERNEL);
@@ -115,7 +115,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     goto fail;
   }
   if (copy_from_user(dev->tmp_buff_ptr + dev->tmp_buff_size, buf, count)) {
-    PDEBUG("write copy_from_user() failed"); 
+    PDEBUG("write copy_from_user() failed\n");
     retval = -EFAULT;
     goto fail;
   }
@@ -124,7 +124,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   // in debug mode we add extra byte to terminate the string with '\0'
   // to allow printing its content
   dev->tmp_buff_ptr[dev->tmp_buff_size] = '\0';
-  PDEBUG("write dev->tmp_buff_ptr: \"%s\"", dev->tmp_buff_ptr);
+  PDEBUG("write dev->tmp_buff_ptr: \"%s\"\n", dev->tmp_buff_ptr);
 #endif
   // if command is terminated, add to circular buffer
   if (dev->tmp_buff_ptr[dev->tmp_buff_size - 1] == '\n') {
@@ -133,9 +133,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
       .size = dev->tmp_buff_size,
     };
     const char *oldbuffptr = aesd_circular_buffer_add_entry(buffer, &entry);
-    PDEBUG("write entry is complete, added to circular buffer"); 
+    PDEBUG("write entry is complete, added to circular buffer");
     if (oldbuffptr) {
-      PDEBUG("write freeing oldbuffptr returned from aesd_circular_buffer_add_entry()"); 
+      PDEBUG("write freeing oldbuffptr returned from aesd_circular_buffer_add_entry()\n");
       kfree(oldbuffptr);
     }
     // reset for next write
@@ -144,11 +144,11 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   }
   retval = count;
   *f_pos += count;
-  PDEBUG("write written %zu bytes, current offset %lld", count, *f_pos);
+  PDEBUG("write written %zu bytes, current offset %lld\n", count, *f_pos);
 fail:
   PDEBUG("write releasing lock");
   mutex_unlock(&(dev->lock));
-  PDEBUG("write returning value: %zd", retval);
+  PDEBUG("write returning value: %zd\n", retval);
   return retval;
 }
 
@@ -173,8 +173,8 @@ loff_t aesd_llseek(struct file *filp, loff_t off, int whence) {
   }
   buff_size = get_buffer_size((const struct aesd_circular_buffer *)dev->buffer);
   retval = fixed_size_llseek(filp, off, whence, buff_size);
-  PDEBUG("fixed_size_llseek returned %lld", retval);
-  PDEBUG("llseek releasing lock");
+  PDEBUG("fixed_size_llseek returned %lld\n", retval);
+  PDEBUG("llseek releasing lock\n");
   mutex_unlock(&(dev->lock));
   return retval;
 }
@@ -188,17 +188,17 @@ static long aesd_adjust_file_offset(
   struct aesd_circular_buffer *buffer;
   struct aesd_dev *dev = filp->private_data;
   if (write_cmd >= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) {
-    PDEBUG("aesd_adjust_file_offset error: write_cmd (%u) is out of range", write_cmd);
+    PDEBUG("aesd_adjust_file_offset error: write_cmd (%u) is out of range\n", write_cmd);
     return -EINVAL;
   }
   if (mutex_lock_interruptible(&(dev->lock))) {
-    PDEBUG("aesd_adjust_file_offset failed to acquire lock");
+    PDEBUG("aesd_adjust_file_offset failed to acquire lock\n");
     return -ERESTARTSYS;
   }
   buffer = dev->buffer;
   entry = &(buffer->entry[write_cmd]);
   if (write_cmd_offset >= entry->size) {
-    PDEBUG("aesd_adjust_file_offset error: write_cmd_offset (%u) exceeds cmd size (%lu)",
+    PDEBUG("aesd_adjust_file_offset error: write_cmd_offset (%u) exceeds cmd size (%lu)\n",
         write_cmd_offset, entry->size);
     retval = -EINVAL;
     goto out;
@@ -216,21 +216,30 @@ static long aesd_adjust_file_offset(
     retval = 0;
   }
 out:
-  PDEBUG("aesd_adjust_file_offset releasing lock");
+  PDEBUG("aesd_adjust_file_offset releasing lock\n");
   mutex_unlock(&(dev->lock));
-  PDEBUG("aesd_adjust_file_offset returning %ld", retval);
+  PDEBUG("aesd_adjust_file_offset returning %ld\n", retval);
   return retval;
 }
 
 long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
   int retval;
   struct aesd_seekto seek_to;
+  PDEBUG("aesd_ioctl begin\n");
   /*
    * extract the type and number bitfields, and don't decode
    * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
    */
-  if (_IOC_TYPE(cmd) != AESD_IOC_MAGIC) return -ENOTTY;
-  if (_IOC_NR(cmd) > AESDCHAR_IOC_MAXNR) return -ENOTTY;
+  if (_IOC_TYPE(cmd) != AESD_IOC_MAGIC) {
+    PDEBUG("aesd_ioctl _IOC_TYPE(cmd): 0%x != AESD_IOC_MAGIC: 0%x\n",
+        _IOC_TYPE(cmd), AESD_IOC_MAGIC);
+    return -ENOTTY;
+  }
+  if (_IOC_NR(cmd) > AESDCHAR_IOC_MAXNR) {
+    PDEBUG("aesd_ioctl _IOC_NR(cmd) > AESDCHAR_IOC_MAXNR (%d > %d)\n",
+        _IOC_NR(cmd), AESDCHAR_IOC_MAXNR);
+    return -ENOTTY;
+  }
   /*
    * the direction is a bitmask, and VERIFY_WRITE catches R/W
    * transfers. `Type' is user-oriented, while
@@ -239,15 +248,21 @@ long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
    */
   if (_IOC_DIR(cmd) & _IOC_READ || _IOC_DIR(cmd) & _IOC_WRITE) {
     if(!access_ok((void __user *)arg, _IOC_SIZE(cmd))) {
+      PDEBUG("aesd_ioctl !access_ok((void __user *)arg: %p, _IOC_SIZE(cmd): %d)\n"
+        ,(void __user *)arg, _IOC_SIZE(cmd));
       return -EFAULT;
     }
   }
   switch(cmd) {
     case AESDCHAR_IOCSEEKTO:
       if (copy_from_user(&seek_to, (const void __user *)arg, sizeof(struct aesd_seekto))) {
+        PDEBUG("aesd_ioctl copy_from_user() failed\n");
         retval = -EFAULT;
       }
       else {
+        PDEBUG("aesd_ioctl copy_from_user() succeeded\n");
+        PDEBUG("aesd_ioctl seek_to.write_cmd: %d, seek_to.write_cmd_offset: %d\n",
+            seek_to.write_cmd, seek_to.write_cmd_offset);
         retval = aesd_adjust_file_offset(
             filp, seek_to.write_cmd, seek_to.write_cmd_offset);
       }
@@ -255,6 +270,8 @@ long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
     default:
       retval = -ENOTTY;
   }
+  PDEBUG("aesd_ioctl returning %d\n", retval);
+  PDEBUG("aesd_ioctl end\n");
   return retval;
 }
 
