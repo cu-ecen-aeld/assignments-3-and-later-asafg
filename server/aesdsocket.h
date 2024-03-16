@@ -31,7 +31,7 @@ struct timer_thread_args {
 
 /*
  * Starts a POSIX interval timer running every interval_secs.
- * On success returns true 
+ * On success returns true
  * and the id of the timer created is stored in @param timer_id.
  */
 bool start_timer(int interval_sec, struct timer_thread_args * timer_args, timer_t * timer_id);
@@ -69,7 +69,7 @@ void signal_handler(int signal);
 /*
  * Register signals for this server.
  * Currently SIGCHLD, SIGINT and SIGTERM are handled.
- * Return true on success or false on failure. 
+ * Return true on success or false on failure.
  */
 bool set_signals(void);
 
@@ -81,24 +81,25 @@ void *get_in_addr(struct sockaddr *sa);
 
 /*
  * Create a socket, binds the socket and starts listening on this socket.
- * Return socket fd or -1 on error. 
+ * Return socket fd or -1 on error.
  * Set human readable IP address into @parameter ip_address
  */
 int start_listening(char * ip_address);
 
-/*
+/**
  * Read line from the socket associated with @parameter client_sock_fd.
- * Return a pointer to the line that was read.
+ * Return a pointer to the line that was read,
+ * the size of the line is stored in @parameter line_size.
  * The pointer should be freed by the caller.
  * If failed to read the line, NULL would be returned.
  */
-char * readline_from_socket(int client_sock_fd);
+char * readline_from_socket(int client_sock_fd, size_t *line_size);
 
 /*
  * Append the line in @parameter line to the file specified by @parameter file.
  * Return true on success or false on failure.
  */
-bool append_to_file(FILE * file, char * line);
+bool append_to_file(FILE * file, char * line, size_t line_size);
 
 /*
  * Send the content of file specified in @parameter file

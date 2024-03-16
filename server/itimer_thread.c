@@ -50,7 +50,7 @@ void timer_thread(union sigval sigval) {
      * since append_to_file will perror if it fails.
      * there is no additional work to do if it fails.
      */
-    append_to_file(file, rfc2822_time);
+    append_to_file(file, rfc2822_time, strlen(rfc2822_time));
     /*
      * cleanup starts here
      */

@@ -40,7 +40,7 @@ void signal_handler(int signal)
 
 bool set_signals(void) {
   struct sigaction sa;
-  sa.sa_handler = signal_handler; // handles SIGCHLD, SIGINT, SIGTERM 
+  sa.sa_handler = signal_handler; // handles SIGCHLD, SIGINT, SIGTERM
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_RESTART;
   if (sigaction(SIGCHLD, &sa, NULL) == -1) {
@@ -67,7 +67,7 @@ void *get_in_addr(struct sockaddr *sa) {
 }
 
 int start_listening(char * ip_address) {
-  int server_sock_fd; 
+  int server_sock_fd;
   struct addrinfo hints, *servinfo, *p_addrinfo;
   int yes=1;
   int rv;
@@ -115,7 +115,7 @@ int start_listening(char * ip_address) {
     return -1;
   }
   // get human readable address of the bound socket
-  inet_ntop(p_addrinfo->ai_family, 
+  inet_ntop(p_addrinfo->ai_family,
       get_in_addr((struct sockaddr *)p_addrinfo->ai_addr),
       ip_address, sizeof ip_address);
   freeaddrinfo(servinfo); // all done with this structure
@@ -129,10 +129,10 @@ int start_listening(char * ip_address) {
 /*
  * Append line to file
  */
-bool append_to_file(FILE * file, char * line) {
+bool append_to_file(FILE * file, char * line, size_t line_size) {
   size_t bytes_written = 0;
-  bytes_written = fwrite(line, 1, strlen(line), file);
-  if (bytes_written < strlen(line)) {
+  bytes_written = fwrite(line, 1, line_size, file);
+  if (bytes_written < line_size) {
     perror("append_to_file: fwrite");
     false;
   }
@@ -141,7 +141,7 @@ bool append_to_file(FILE * file, char * line) {
 
 void daemonize(void) {
   pid_t pid;
-  pid = fork(); 
+  pid = fork();
   if (pid < 0) {
     perror("daemonize: fork");
     exit(EXIT_FAILURE);
@@ -151,10 +151,10 @@ void daemonize(void) {
   }
   if (setsid() == -1) { // new session creation failed
     perror("daemonize: setsid");
-    exit(EXIT_FAILURE);    
+    exit(EXIT_FAILURE);
   }
   // fork again
-  pid = fork(); 
+  pid = fork();
   if (pid < 0) {
     perror("daemonize: fork");
     exit(EXIT_FAILURE);
@@ -206,7 +206,7 @@ void parse_args(int argc, char **argv, bool * should_daemonize) {
       print_help(argv[0]);
       exit(EXIT_SUCCESS);
     }
-  } 
+  }
 }
 
 struct aesd_thread_args * init_thread(pthread_mutex_t * mutex, int sock_fd, char * ip_address) {
@@ -250,7 +250,7 @@ void remove_all_remaining_threads(struct thread_args_head * list_head) {
 
 
 int main(int argc, char **argv) {
-  int client_sock_fd; 
+  int client_sock_fd;
   struct sockaddr_storage client_address; // connector's address information
   socklen_t sin_size;
   char ip_address[INET6_ADDRSTRLEN];
@@ -270,8 +270,8 @@ int main(int argc, char **argv) {
   }
   if (should_daemonize) {
     daemonize();
-  } 
-  else { // print only if not being run as daemon 
+  }
+  else { // print only if not being run as daemon
     printf("Listening on address %s\n", ip_address);
   }
   if ((rc = pthread_mutex_init(&mutex, NULL))) {
@@ -283,7 +283,7 @@ int main(int argc, char **argv) {
    * initialize head of linked list of aesd_thread_args
    */
   struct thread_args_head list_head;
-  SLIST_INIT(&list_head); 
+  SLIST_INIT(&list_head);
   /*
    * Set and start timer
    */
@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
         perror("main: accept");
         continue;
       }
-      else { // we're not running any more... 
+      else { // we're not running any more...
         break;
       }
     }
@@ -328,10 +328,10 @@ int main(int argc, char **argv) {
     }
     client_sock_fd = -1;
     SLIST_INSERT_HEAD(&list_head, thread_args, elements);
-    remove_joinable_threads(&list_head);  
+    remove_joinable_threads(&list_head);
   }
   exit_code = EXIT_SUCCESS;
-  // cleanup starts here, 
+  // cleanup starts here,
   // labels are in reverse oreder of their respective gotos
 err_pthread_create: //6
 err_init_thread: //5
@@ -343,7 +343,7 @@ err_init_thread: //5
     perror("main: timer_delete");
   }
 #endif
-  remove_all_remaining_threads(&list_head);  
+  remove_all_remaining_threads(&list_head);
 #ifndef USE_AESD_CHAR_DEVICE
   if (remove(OUTPUT_FILE) == -1) {
     perror("main: remove");
